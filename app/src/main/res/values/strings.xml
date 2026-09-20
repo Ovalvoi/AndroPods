@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Andropods</string>
+
+    <string name="battery_unknown">&#8212;</string>
+    <string name="pod_left">Left</string>
+    <string name="pod_right">Right</string>
+    <string name="pod_case">Case</string>
+
+    <string name="service_channel_name">AirPods status</string>
+    <string name="service_channel_description">Ongoing battery readout while your AirPods are connected.</string>
+    <string name="lid_channel_name">Case opened</string>
+    <string name="lid_channel_description">A brief battery summary when you open the case.</string>
+
+    <string name="status_disconnected">AirPods not connected</string>
+    <string name="status_searching">Looking for your AirPods…</string>
+
+    <string name="case_last_seen">last seen %1$s</string>
+    <string name="age_just_now">just now</string>
+    <string name="age_minutes">%1$d min ago</string>
+    <string name="age_hours">%1$d h ago</string>
+    <string name="age_days">%1$d d ago</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_open">Open settings</string>
+    <string name="settings_back">Back</string>
+
+    <string name="settings_section_popup">Case-opened popup</string>
+    <string name="settings_auto_dismiss">Dismiss automatically</string>
+    <string name="settings_auto_dismiss_summary">Hide the popup by itself instead of waiting for a swipe.</string>
+    <string name="settings_popup_timeout">Hide after</string>
+    <string name="settings_seconds">%1$d s</string>
+
+    <string name="settings_section_audio">Audio</string>
+    <string name="settings_resume_music">Resume music when connected</string>
+    <string name="settings_resume_music_summary">Sends Play to the last app that was playing once the AirPods’ audio link is up. Does nothing if nothing was playing.</string>
+
+    <string name="settings_section_gestures">Gestures</string>
+    <string name="settings_gestures_title">Double-tap is handled by the AirPods</string>
+    <string name="settings_gestures_body">A double tap sends a standard Bluetooth command straight to the phone: with the pod set to Siri (the default) Android opens your assistant; set to Play/Pause, Next or Previous it controls playback. This works without this app and cannot be changed from Android — the action is stored in the pods and only an iPhone’s Bluetooth settings can change it.</string>
+</resources>

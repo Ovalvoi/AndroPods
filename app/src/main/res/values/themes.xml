@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Compose supplies the real theming. This exists so the manifest has a
+        launch theme. values-night/ swaps it to the dark variant so there is no
+        light flash before the Compose tree draws.
+    -->
+    <style name="Theme.Andropods" parent="@android:style/Theme.Material.Light.NoActionBar" />
+</resources>

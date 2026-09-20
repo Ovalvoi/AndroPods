@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+        The instrumentation APK is its own package, so BLE permissions must be
+        declared here too. Without this, `pm grant` reports success but grants
+        nothing, and a scan registers yet silently returns zero results.
+    -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <!-- Diagnostics only: lets AdvertiseProbeTest make the phone a known transmitter. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+</manifest>

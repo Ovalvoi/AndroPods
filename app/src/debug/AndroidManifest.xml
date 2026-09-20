@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+        Debug builds only. Bluetooth permission checks are enforced per UID
+        against the *app's* declared permissions, so the instrumentation APK
+        cannot bring this in on its own. AdvertiseProbeTest needs it to turn the
+        phone into a known BLE transmitter during radio diagnostics. Release
+        builds never request it.
+    -->
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+</manifest>
