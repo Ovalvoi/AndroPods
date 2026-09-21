@@ -10,4 +10,4 @@ captures/
 *.aab
 
 # Reference dumps of other apps must never be committed
-airpodsforandroid/
+reference-dumps/
