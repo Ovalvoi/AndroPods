@@ -6,14 +6,19 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.util.Log
+import android.widget.RemoteViews
 import androidx.core.app.NotificationCompat
 import com.ovalvoi.andropods.R
 import com.ovalvoi.andropods.ble.PodsState
 import com.ovalvoi.andropods.data.LastCaseReading
+import com.ovalvoi.andropods.data.PodsRepository
 import com.ovalvoi.andropods.ui.MainActivity
 
 /** Builds the ongoing status notification and the case-opened alert. */
 object PodsNotifications {
+
+    private const val TAG = "PodsNotifications"
 
     const val ONGOING_CHANNEL_ID = "pods_status"
     const val LID_CHANNEL_ID = "pods_lid"
@@ -50,10 +55,24 @@ object PodsNotifications {
         )
     }
 
-    fun ongoing(context: Context, state: PodsState?, lastCase: LastCaseReading? = null): Notification =
-        NotificationCompat.Builder(context, ONGOING_CHANNEL_ID)
+    /**
+     * The ongoing status notification.
+     *
+     * Uses a custom content view -- three battery rings on one row -- rather
+     * than the standard template, whose single text line wrapped onto two
+     * rows once it held three labelled percentages.
+     *
+     * [setContentTitle] and [setContentText] are still set. They are what the
+     * platform falls back to when a launcher ignores the custom view, and
+     * they are what a screen reader and Android Auto read, so the readout
+     * stays available even where the rings are not.
+     */
+    fun ongoing(context: Context, state: PodsState?, lastCase: LastCaseReading? = null): Notification {
+        val name = PodsRepository.deviceName.value ?: context.getString(R.string.app_name)
+        val builder = NotificationCompat.Builder(context, ONGOING_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle(
+            .setContentTitle(name)
+            .setContentText(
                 state?.let { summary(context, it, lastCase) }
                     ?: context.getString(R.string.status_searching)
             )
@@ -62,7 +81,65 @@ object PodsNotifications {
             .setSilent(true)
             .setPriority(NotificationCompat.PRIORITY_MIN)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
-            .build()
+
+        // Only once there is something to draw: a row of three empty rings
+        // while searching says less than the text line does.
+        //
+        // Wrapped because this notification is the foreground service's, and
+        // the service dies if building it throws. A custom view is the one
+        // part here that can fail on an unusual device or OEM skin, and the
+        // standard template built above is a complete fallback -- so a
+        // failure costs the rings, not the app.
+        if (state != null) {
+            try {
+                val content = batteryRow(context, name, state, lastCase)
+                builder
+                    .setCustomContentView(content)
+                    .setCustomBigContentView(content)
+                    // DecoratedCustom keeps the system header -- app name,
+                    // time, expand chevron -- and lets the platform re-colour
+                    // the view for the current shade, which a bare custom
+                    // view does not get.
+                    .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            } catch (e: Exception) {
+                Log.w(TAG, "Custom notification view failed; using the text template", e)
+            }
+        }
+
+        return builder.build()
+    }
+
+    /**
+     * The custom row: the device name, then one ring per component.
+     *
+     * Each ring is a Bitmap carrying both the gauge and its number, so the
+     * row is three images and three labels rather than an alternating run of
+     * views that wraps differently on every launcher.
+     */
+    private fun batteryRow(
+        context: Context,
+        name: String,
+        state: PodsState,
+        lastCase: LastCaseReading?,
+    ): RemoteViews = RemoteViews(context.packageName, R.layout.notification_pods).apply {
+        setTextViewText(R.id.notification_title, name)
+
+        setImageViewBitmap(R.id.glyph_left, BatteryGlyph.render(context, state.leftBattery))
+        setImageViewBitmap(R.id.glyph_right, BatteryGlyph.render(context, state.rightBattery))
+
+        // Out of the case the beacon cannot report its level, so fall back to
+        // the remembered one, marked with a "~" exactly as the app does.
+        val isLiveCase = state.caseBattery != null
+        setImageViewBitmap(
+            R.id.glyph_case,
+            BatteryGlyph.render(
+                context = context,
+                level = state.caseBattery ?: lastCase?.level,
+                isCase = true,
+                isRemembered = !isLiveCase && lastCase != null,
+            ),
+        )
+    }
 
     /**
      * @param timeoutMs dismiss by itself after this long, or null to stay until

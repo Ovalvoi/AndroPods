@@ -12,6 +12,13 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
+        Draws the connect popup over other apps. Not a runtime permission:
+        there is no dialog, only a Settings page, so the app degrades to no
+        popup rather than failing when it is not granted.
+    -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
 

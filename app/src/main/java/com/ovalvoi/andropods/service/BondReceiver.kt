@@ -13,7 +13,28 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.ovalvoi.andropods.data.PodsRepository
 import com.ovalvoi.andropods.data.SettingsStore
+
+/**
+ * The name the user gave these pods in Android's Bluetooth settings.
+ *
+ * Worth showing because it is the only thing that identifies *whose* pods
+ * these are: every Gen 2 broadcasts the same model ID, so the model name
+ * alone cannot tell one pair from another. Null when the name is unset or
+ * BLUETOOTH_CONNECT was revoked mid-flight, in which case the UI falls back
+ * to the model name.
+ */
+private fun BluetoothDevice.readableName(): String? = try {
+    // alias first, then name. getName() is the name the device *broadcasts*
+    // -- every pair of Gen 2 AirPods says "AirPods" -- while a rename in
+    // Android's Bluetooth settings is stored separately as the alias. Reading
+    // only the name meant a renamed pair still showed the generic one.
+    (alias ?: name)?.takeIf { it.isNotBlank() }
+} catch (e: SecurityException) {
+    Log.w("BondReceiver", "BLUETOOTH_CONNECT revoked while reading device name", e)
+    null
+}
 
 /**
  * Starts and stops [PodsService] as the AirPods connect and disconnect over
@@ -39,6 +60,7 @@ class BondReceiver : BroadcastReceiver() {
         when (intent.action) {
             BluetoothDevice.ACTION_ACL_CONNECTED -> {
                 Log.d(TAG, "Audio device connected; starting service")
+                PodsRepository.onDeviceName(device.readableName())
                 PodsService.start(context)
             }
 
@@ -126,6 +148,7 @@ class BondReceiver : BroadcastReceiver() {
             Log.d(TAG, "bonded audio devices connected: ${connected.size}")
             if (connected.isNotEmpty()) {
                 Log.d(TAG, "Audio device already connected at startup; starting service")
+                PodsRepository.onDeviceName(connected.first().readableName())
                 PodsService.start(context)
             }
         }

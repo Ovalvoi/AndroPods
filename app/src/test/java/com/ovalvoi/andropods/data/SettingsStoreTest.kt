@@ -37,6 +37,8 @@ class SettingsStoreTest {
                     "auto_dismiss_popup" to false,
                     "popup_timeout_seconds" to 15,
                     "resume_music_on_connect" to true,
+                    "show_connect_popup" to false,
+                    "popup_position" to "top",
                     "color_theme" to "sunset",
                     "dark_mode" to "dark",
                 )
@@ -46,6 +48,8 @@ class SettingsStoreTest {
         assertFalse(loaded.autoDismissPopup)
         assertEquals(15, loaded.popupTimeoutSeconds)
         assertTrue(loaded.resumeMusicOnConnect)
+        assertFalse(loaded.showConnectPopup)
+        assertSame(PopupPosition.TOP, loaded.popupPosition)
         assertSame(ColorTheme.SUNSET, loaded.colorTheme)
         assertSame(DarkMode.DARK, loaded.darkMode)
     }
@@ -54,6 +58,22 @@ class SettingsStoreTest {
     fun aTimeoutOutsideTheOfferedChoicesIsClampedToTheDefault() {
         val loaded = SettingsStore.load(FakePrefs(mapOf("popup_timeout_seconds" to 999)))
         assertEquals(AppSettings.DEFAULT_POPUP_TIMEOUT_SECONDS, loaded.popupTimeoutSeconds)
+    }
+
+    @Test
+    fun anUnknownPopupPositionKeyFallsBackToTheDefault() {
+        val loaded = SettingsStore.load(FakePrefs(mapOf("popup_position" to "middle")))
+        assertSame(PopupPosition.DEFAULT, loaded.popupPosition)
+    }
+
+    /**
+     * The popup is the feature's whole point, so a fresh install must show it
+     * without the user going to find a switch first.
+     */
+    @Test
+    fun theConnectPopupIsOnByDefault() {
+        assertTrue(AppSettings().showConnectPopup)
+        assertSame(PopupPosition.BOTTOM, AppSettings().popupPosition)
     }
 
     @Test

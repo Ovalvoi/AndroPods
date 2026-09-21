@@ -30,10 +30,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,10 +55,17 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ovalvoi.andropods.BuildConfig
 import com.ovalvoi.andropods.R
 import com.ovalvoi.andropods.data.AppSettings
 import com.ovalvoi.andropods.data.ColorTheme
 import com.ovalvoi.andropods.data.DarkMode
+import com.ovalvoi.andropods.data.PopupPosition
+import com.ovalvoi.andropods.ui.overlay.ConnectPopupHost
+import com.ovalvoi.andropods.ui.overlay.OverlayPermission
+import com.ovalvoi.andropods.ble.PodsModel
+import com.ovalvoi.andropods.ble.PodsState
+import com.ovalvoi.andropods.data.LastCaseReading
 import com.ovalvoi.andropods.ui.theme.Palettes
 
 /**
@@ -103,6 +120,24 @@ fun SettingsScreen(
             Spacer(Modifier.height(32.dp))
 
             SectionLabel(Icons.Outlined.Notifications, stringResource(R.string.settings_section_popup))
+            SwitchRow(
+                title = stringResource(R.string.settings_connect_popup),
+                summary = stringResource(R.string.settings_connect_popup_summary),
+                checked = settings.showConnectPopup,
+                onCheckedChange = { on -> onChange { it.copy(showConnectPopup = on) } },
+            )
+            // Only while the popup is actually wanted: the grant is useless
+            // otherwise, and asking for it unprompted is the kind of thing
+            // that makes people uninstall an app.
+            if (settings.showConnectPopup) {
+                OverlayPermissionRow()
+                FieldLabel(stringResource(R.string.settings_popup_position))
+                PopupPositionPicker(
+                    selected = settings.popupPosition,
+                    onSelect = { position -> onChange { it.copy(popupPosition = position) } },
+                )
+            }
+            if (BuildConfig.DEBUG) PreviewPopupRow(settings)
             SwitchRow(
                 title = stringResource(R.string.settings_auto_dismiss),
                 summary = stringResource(R.string.settings_auto_dismiss_summary),
@@ -178,8 +213,11 @@ private fun FieldLabel(text: String) {
 }
 
 /**
- * One swatch per palette. Material You gets a four-colour sweep since it has
- * no fixed colours of its own; the rest show their two headline colours.
+ * One swatch per palette, showing its light and dark accent.
+ *
+ * Every palette now has fixed colours of its own -- including Default, which
+ * is the neutral colourway rather than "whatever the wallpaper says" -- so
+ * they all render the same way.
  */
 @Composable
 private fun ThemePicker(selected: ColorTheme, onSelect: (ColorTheme) -> Unit) {
@@ -203,7 +241,7 @@ private fun ThemePicker(selected: ColorTheme, onSelect: (ColorTheme) -> Unit) {
 private fun ThemeSwatch(theme: ColorTheme, isSelected: Boolean, onClick: () -> Unit) {
     val name = stringResource(theme.nameRes())
     val colors = Palettes.swatch(theme)
-    val brush = if (colors.size > 2) Brush.sweepGradient(colors) else Brush.linearGradient(colors)
+    val brush = Brush.linearGradient(colors)
     val ring = if (isSelected) MaterialTheme.colorScheme.onSurface else Color.Transparent
 
     Column(
@@ -239,6 +277,138 @@ private fun ThemeSwatch(theme: ColorTheme, isSelected: Boolean, onClick: () -> U
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
         )
     }
+}
+
+/**
+ * Prompts for the overlay grant, and disappears once it is held.
+ *
+ * Re-checked on every resume rather than once: the grant is given on a
+ * Settings page in another task, so the only reliable moment to learn it
+ * changed is coming back to this screen.
+ */
+@Composable
+private fun OverlayPermissionRow() {
+    val context = LocalContext.current
+    var isGranted by remember { mutableStateOf(OverlayPermission.isGranted(context)) }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) isGranted = OverlayPermission.isGranted(context)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    if (isGranted) return
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.settings_overlay_permission),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = stringResource(R.string.settings_overlay_permission_summary),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        TextButton(onClick = { context.startActivity(OverlayPermission.requestIntent(context)) }) {
+            Text(stringResource(R.string.settings_overlay_grant))
+        }
+    }
+}
+
+/**
+ * Debug-only: renders the popup on demand with sample levels.
+ *
+ * Shown with the *live* settings object, so the preview is exactly what a real
+ * connect would draw -- theme, position and dismiss timeout included. Tweaking
+ * a colour and seeing it otherwise costs a disconnect/reconnect of the pods.
+ */
+@Composable
+private fun PreviewPopupRow(settings: AppSettings) {
+    val context = LocalContext.current
+    val host = remember(context) { ConnectPopupHost(context.applicationContext) }
+    // The window must come down with the screen that opened it; a preview left
+    // attached would outlive Settings and float over everything.
+    DisposableEffect(host) { onDispose { host.destroy() } }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = stringResource(R.string.settings_preview_popup),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = stringResource(R.string.settings_preview_popup_summary),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        TextButton(
+            onClick = {
+                if (OverlayPermission.isGranted(context)) {
+                    host.show(PREVIEW_STATE, PREVIEW_CASE, settings)
+                } else {
+                    context.startActivity(OverlayPermission.requestIntent(context))
+                }
+            },
+        ) {
+            Text(stringResource(R.string.settings_preview_show))
+        }
+    }
+}
+
+/** Levels chosen to span all three battery colour bands at once. */
+private val PREVIEW_STATE = PodsState(
+    model = PodsModel.AIRPODS_GEN_2,
+    leftBattery = 80,
+    rightBattery = 35,
+    caseBattery = null,
+    isLeftCharging = false,
+    isRightCharging = true,
+    isCaseCharging = false,
+    isLidOpen = false,
+    lidOpenCounter = 0,
+    rawLeftInEar = true,
+    rawRightInEar = true,
+)
+
+/** Null case level above, so this also exercises the remembered path. */
+private val PREVIEW_CASE = LastCaseReading(level = 15, isCharging = false, seenAtMs = 0L)
+
+@Composable
+private fun PopupPositionPicker(selected: PopupPosition, onSelect: (PopupPosition) -> Unit) {
+    val positions = PopupPosition.entries
+    SingleChoiceSegmentedButtonRow(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+    ) {
+        positions.forEachIndexed { index, position ->
+            SegmentedButton(
+                selected = position == selected,
+                onClick = { onSelect(position) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = positions.size),
+                label = { Text(stringResource(position.nameRes())) },
+            )
+        }
+    }
+}
+
+private fun PopupPosition.nameRes(): Int = when (this) {
+    PopupPosition.TOP -> R.string.popup_position_top
+    PopupPosition.BOTTOM -> R.string.popup_position_bottom
 }
 
 @Composable

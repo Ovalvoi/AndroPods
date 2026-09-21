@@ -18,6 +18,20 @@ object PodsRepository {
     private val _state = MutableStateFlow<PodsConnection>(PodsConnection.Disconnected)
     val state: StateFlow<PodsConnection> = _state.asStateFlow()
 
+    /**
+     * The user's own name for the pods, e.g. "UV-AirPods".
+     *
+     * Kept separate from [state] because it arrives from a different source
+     * at a different time: the classic Bluetooth link knows the name at
+     * connect, while the battery levels come later from the BLE beacon.
+     */
+    private val _deviceName = MutableStateFlow<String?>(null)
+    val deviceName: StateFlow<String?> = _deviceName.asStateFlow()
+
+    fun onDeviceName(name: String?) {
+        _deviceName.value = name
+    }
+
     fun onDisconnected() {
         _state.value = PodsConnection.Disconnected
     }

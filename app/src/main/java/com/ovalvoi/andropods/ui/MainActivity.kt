@@ -69,7 +69,12 @@ class MainActivity : ComponentActivity() {
                     )
                 } else {
                     val connection by PodsRepository.state.collectAsState()
-                    PodsScreen(connection, onOpenSettings = { showSettings = true })
+                    val deviceName by PodsRepository.deviceName.collectAsState()
+                    PodsScreen(
+                        connection = connection,
+                        onOpenSettings = { showSettings = true },
+                        deviceName = deviceName,
+                    )
                 }
             }
         }

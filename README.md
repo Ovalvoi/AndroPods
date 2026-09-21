@@ -7,7 +7,7 @@
 <h1 align="center">AndroPods</h1>
 
 <p align="center">
-  AirPods battery on Android — left, right and case, live, with a quiet popup when you open the case.
+  AirPods battery on Android — left, right and case, live, with a card that slides in when they connect.
 </p>
 
 <p align="center">
@@ -23,11 +23,13 @@ Android never shows you the battery of your AirPods — the phone only sees them
 
 - **Live battery readout** for the left bud, the right bud and the case, in colour: green, orange at 40% and below, red at 20% and below.
 - **Charging indicator** on whichever pod or case is charging.
-- **Case-opened popup** — a brief, silent notification with all three levels when you open the lid. Auto-dismisses after 3 / 8 / 15 s, or stays until swiped.
-- **Always-on status notification** while the AirPods are connected, so you can check without opening the app.
+- **Connect popup** — a themed card slides in from the edge of the screen when your AirPods connect, over whatever app you are in, showing all three levels. Choose top or bottom; auto-dismisses after 3 / 8 / 15 s, or stays until swiped.
+- **Case-opened popup** — the same brief summary when you open the lid.
+- **Battery rings in the notification** — the ongoing status entry draws a real gauge per component, colour-coded, on a single line.
 - **Remembers the case.** With both buds in your ears the case cannot report its level (its radio is in the buds — an iPhone shows nothing either). AndroPods shows the last reading it saw and how old it is.
 - **Resume music when connected** (optional) — sends Play to the last app that was playing, the way an iPhone does.
-- **Material You** by default, plus four palettes — Ocean, Sunset, Forest, Grape — each with light and dark variants, and a system / light / dark override.
+- **Your name for them.** If you renamed your AirPods in Android's Bluetooth settings, that name is what the app, the popup and the notification show — not the generic "AirPods" every pair broadcasts.
+- **Five colourways** — Default (neutral), Ocean, Sunset, Forest, Grape — each in light and dark, with a system / light / dark override. One design, five palettes: only the accent hue changes.
 - **Battery-friendly.** The scanner only runs while your bonded AirPods are actually connected over Bluetooth, and it uses the radio's batched delivery so the CPU sleeps between readings.
 - **No location permission.** Bluetooth scanning is declared `neverForLocation`, so Android does not ask for it.
 
@@ -84,14 +86,16 @@ The first build downloads Gradle 9.2 and the Android dependencies, so it takes a
 | **Nearby devices** | Reading the Bluetooth LE beacon and noticing when your AirPods connect. Declared `neverForLocation`, so no location permission is involved. |
 | **Notifications** | The status notification and the case-opened popup. Deny it and the app still works; you just lose the notifications. |
 
+There is one more, granted from Settings rather than a prompt: **Display over other apps**, which the connect popup needs to draw over whatever you are using. Deny it and the rest of the app is unaffected.
+
 AndroPods has no internet permission and never sends anything anywhere.
 
 ## Settings
 
 Tap the gear in the top-right corner.
 
-- **Appearance** — pick Material You (follows your wallpaper) or one of the four palettes, and force light or dark mode.
-- **Case-opened popup** — whether the popup dismisses itself, and after how long.
+- **Appearance** — pick one of the five colourways, and force light or dark mode.
+- **Popups** — whether the connect popup appears and at which edge, whether it dismisses itself, and after how long. Granting *Display over other apps* is what lets it draw over other apps; without it the popup is skipped and everything else still works.
 - **Audio** — resume music when the AirPods connect.
 - **Gestures** — an explanation of why double-tap cannot be configured from Android: the action is stored in the pods and only an iPhone can change it. The default (Siri) opens your Android assistant; Play/Pause, Next and Previous work as expected.
 
@@ -100,6 +104,10 @@ Tap the gear in the top-right corner.
 **"AirPods not connected" although they are in my ears.** Check that they show as connected in Android's Bluetooth settings, then open AndroPods once — on a cold start (first install, or after a reboot) the app has to see them connect, or be opened while they already are.
 
 **"Looking for your AirPods…" never turns into numbers.** The beacon is not getting through. Toggle Bluetooth off and on. If it stays stuck, a paired-but-absent Bluetooth LE accessory (a selfie shutter, a tracker, a smart tag) can silently starve all BLE scanning on the phone — forget any such device you no longer use. Details in the [technical notes](docs/TECHNICAL.md#on-device-status-pixel-7-android-17--api-37).
+
+**The connect popup never appears.** It needs *Display over other apps*, which is not a normal permission prompt — grant it from *Settings ▸ Popups ▸ Show on connect ▸ Grant*, or from *Android Settings ▸ Apps ▸ AndroPods ▸ Display over other apps*. The popup fires on the first battery reading after connecting, which takes a second or two.
+
+**It shows "AirPods" instead of the name I gave them.** Rename the pods in *Android Settings ▸ Bluetooth ▸ AirPods ▸ ✏️*. A name set on an iPhone lives in the pods, not in Android, so Android does not see it.
 
 **Case shows "last seen … ago".** Expected whenever both buds are out of the case: the case has no radio of its own, so its level is only reported while a bud sits in it. Put one in and the live level returns.
 
@@ -120,7 +128,7 @@ Targets AirPods (2nd generation) specifically. Newer models moved the battery fi
 ## Development
 
 ```bash
-./gradlew testDebugUnitTest    # 57 JVM unit tests: parser, tracker, settings, colour bands
+./gradlew testDebugUnitTest    # 59 JVM unit tests: parser, tracker, settings, colour bands
 ./gradlew lintDebug            # Android lint
 ./gradlew assembleDebug        # debug APK
 ./gradlew assembleRelease      # minified release APK (unsigned unless signing env vars are set)
@@ -131,9 +139,10 @@ Kotlin, Jetpack Compose, Material 3. No third-party runtime dependencies beyond 
 ```
 app/src/main/java/com/ovalvoi/andropods/
 ├── ble/        PodsScanner (BLE scan), ProximityPayload (beacon parser), PodsTracker (which pods are ours)
-├── data/       PodsRepository (state), AppSettings + SettingsStore, CaseMemory, Appearance (themes)
-├── service/    PodsService (foreground scan), BondReceiver (start/stop on connect), notifications, MediaResumer
-└── ui/         PodsScreen, SettingsScreen, AppIcons, theme/ (Material You + palettes, battery colours)
+├── data/       PodsRepository (state + device name), AppSettings + SettingsStore, CaseMemory, Appearance
+├── service/    PodsService (foreground scan), BondReceiver (start/stop on connect), notifications, BatteryGlyph, MediaResumer
+└── ui/         PodsScreen, SettingsScreen, components/ (BatteryRing, cards), overlay/ (connect popup),
+                theme/ (palettes, battery colours, dimens)
 ```
 
 On Windows, `./gradlew clean` can fail with a file lock while the daemon holds lint jars open; run `./gradlew --stop` first.
@@ -145,7 +154,7 @@ The instrumented tests under `app/src/androidTest` are radio diagnostics rather 
 [CI](.github/workflows/android.yml) runs the tests, lint and both APK builds on every push, and publishes a GitHub Release with the APKs when you push a tag:
 
 ```bash
-git tag v0.2.0 && git push origin v0.2.0
+git tag v0.3.0 && git push origin v0.3.0
 ```
 
 For a **signed** release APK (installable over previous versions), add four repository secrets — `ANDROPODS_KEYSTORE_BASE64` (the `.jks` file base64-encoded), `ANDROPODS_KEYSTORE_PASSWORD`, `ANDROPODS_KEY_ALIAS`, `ANDROPODS_KEY_PASSWORD`. Without them CI still produces an unsigned release APK plus an installable debug APK. Locally, export the same names (`ANDROPODS_KEYSTORE_FILE` pointing at the `.jks` instead of the base64 one) before `./gradlew assembleRelease`.

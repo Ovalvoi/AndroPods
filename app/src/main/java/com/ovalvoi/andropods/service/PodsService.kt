@@ -20,6 +20,7 @@ import com.ovalvoi.andropods.data.CaseMemory
 import com.ovalvoi.andropods.data.LastCaseReading
 import com.ovalvoi.andropods.data.PodsRepository
 import com.ovalvoi.andropods.data.SettingsStore
+import com.ovalvoi.andropods.ui.overlay.ConnectPopupHost
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -48,14 +49,25 @@ class PodsService : Service() {
     private val tracker = PodsTracker()
     private lateinit var scanner: PodsScanner
     private lateinit var caseMemory: CaseMemory
+    private lateinit var popupHost: ConnectPopupHost
 
     private var scanJob: Job? = null
     private var wasLidOpen = false
+
+    /**
+     * Whether the connect popup has already been shown for this connection.
+     *
+     * The service is started on the ACL connect edge and destroyed on
+     * disconnect, so an instance field is exactly one connection's worth of
+     * memory -- no reset logic, and reconnecting shows the popup again.
+     */
+    private var hasShownConnectPopup = false
 
     override fun onCreate() {
         super.onCreate()
         scanner = PodsScanner(this)
         caseMemory = CaseMemory.persistent(this)
+        popupHost = ConnectPopupHost(this)
         PodsNotifications.ensureChannels(this)
     }
 
@@ -124,6 +136,7 @@ class PodsService : Service() {
 
                 val lastCase = caseMemory.observe(state)
                 PodsRepository.onState(state, lastCase)
+                showConnectPopupOnce(state, lastCase)
                 notifyLidTransition(state, lastCase)
                 updateOngoing(state, lastCase)
             }
@@ -132,6 +145,23 @@ class PodsService : Service() {
                 if (cause is SecurityException) stopSelf()
             }
             .launchIn(scope)
+    }
+
+    /**
+     * Slide the battery card in the first time this connection yields a real
+     * reading.
+     *
+     * Deliberately keyed on the first *decoded beacon* rather than on the ACL
+     * connect edge: at connect time there are no numbers yet, and a card full
+     * of dashes that fills in a second later is worse than one that arrives
+     * already correct.
+     */
+    private fun showConnectPopupOnce(state: PodsState, lastCase: LastCaseReading?) {
+        if (hasShownConnectPopup) return
+        val settings = SettingsStore.settings.value
+        if (!settings.showConnectPopup) return
+        hasShownConnectPopup = true
+        popupHost.show(state, lastCase, settings)
     }
 
     /**
@@ -172,6 +202,7 @@ class PodsService : Service() {
         ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
 
     override fun onDestroy() {
+        popupHost.destroy()
         scanJob?.cancel()
         scope.cancel()
         tracker.reset()

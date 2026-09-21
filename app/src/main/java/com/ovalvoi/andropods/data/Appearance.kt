@@ -38,3 +38,20 @@ enum class DarkMode(val key: String) {
         fun fromKey(key: String?): DarkMode = entries.firstOrNull { it.key == key } ?: DEFAULT
     }
 }
+
+/**
+ * Which screen edge the connect popup slides in from.
+ *
+ * [BOTTOM] is the default: it is inside thumb reach and cannot collide with
+ * the status bar or a notch, which the top edge can on a Pixel.
+ */
+enum class PopupPosition(val key: String) {
+    TOP("top"),
+    BOTTOM("bottom");
+
+    companion object {
+        val DEFAULT = BOTTOM
+
+        fun fromKey(key: String?): PopupPosition = entries.firstOrNull { it.key == key } ?: DEFAULT
+    }
+}

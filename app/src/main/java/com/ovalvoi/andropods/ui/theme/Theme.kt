@@ -22,8 +22,9 @@ import com.ovalvoi.andropods.data.DarkMode
  * fallback for API < 31, which minSdk makes unreachable today but costs
  * nothing to keep correct.
  *
- * Battery colours (green / orange / red) are semantic and the same in every
- * palette; they only swap between a light and a dark variant for contrast.
+ * Battery colours (green / orange / red) are semantic: the same in every
+ * palette and in both brightness modes, because they report a regulated
+ * state rather than decorate a surface.
  */
 @Composable
 fun AndroPodsTheme(
@@ -41,7 +42,9 @@ fun AndroPodsTheme(
     }
 
     CompositionLocalProvider(
-        LocalBatteryColors provides if (darkTheme) BatteryColors.Dark else BatteryColors.Light,
+        // One set for both modes: battery state is regulated information,
+        // so the same level must be the same colour everywhere.
+        LocalBatteryColors provides BatteryColors.Shared,
     ) {
         MaterialTheme(colorScheme = colorScheme, content = content)
     }
@@ -53,4 +56,20 @@ fun DarkMode.resolve(): Boolean = when (this) {
     DarkMode.SYSTEM -> isSystemInDarkTheme()
     DarkMode.LIGHT -> false
     DarkMode.DARK -> true
+}
+
+/**
+ * The same resolution as [resolve], outside composition.
+ *
+ * The overlay window builds its theme from a Service, where there is no
+ * composition to read `isSystemInDarkTheme()` from, so [DarkMode.SYSTEM] is
+ * answered from the configuration's UI mode instead.
+ */
+fun DarkMode.resolveForOverlay(context: android.content.Context): Boolean = when (this) {
+    DarkMode.LIGHT -> false
+    DarkMode.DARK -> true
+    DarkMode.SYSTEM ->
+        context.resources.configuration.uiMode and
+            android.content.res.Configuration.UI_MODE_NIGHT_MASK ==
+            android.content.res.Configuration.UI_MODE_NIGHT_YES
 }

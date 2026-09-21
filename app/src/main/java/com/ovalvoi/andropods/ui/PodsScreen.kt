@@ -1,38 +1,33 @@
 package com.ovalvoi.andropods.ui
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -45,20 +40,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ovalvoi.andropods.R
@@ -66,102 +54,229 @@ import com.ovalvoi.andropods.ble.PodsModel
 import com.ovalvoi.andropods.ble.PodsState
 import com.ovalvoi.andropods.data.LastCaseReading
 import com.ovalvoi.andropods.data.PodsConnection
+import com.ovalvoi.andropods.ui.components.CaseBatteryCard
+import com.ovalvoi.andropods.ui.components.DeviceSelector
+import com.ovalvoi.andropods.ui.components.EarbudBatteryCard
+import com.ovalvoi.andropods.ui.components.StatusIndicator
+import com.ovalvoi.andropods.ui.theme.Dimens
 import com.ovalvoi.andropods.ui.theme.LocalBatteryColors
-import com.ovalvoi.andropods.ui.theme.batteryColor
 import kotlinx.coroutines.delay
 
 /**
- * Single-screen readout.
+ * The readout.
  *
  * Hierarchy is carried by scale: the two buds are the primary read, each in a
- * ring gauge with its glyph; the case sits below in a quieter card. Colour is
- * semantic -- the ring, the glyph and the number all take the battery band's
- * green / orange / red -- while the palette only tints the background wash
- * and the chrome around it.
+ * large ring with its glyph, and the case sits below in a quieter card.
+ *
+ * Colour is split by role. The palette owns the chrome -- the ambient wash,
+ * the gear, the device capsule -- while the battery colours are semantic and
+ * identical in every colourway, because a red 10% has to read as red whichever
+ * theme is on. Neither state is signalled by colour alone; the number and its
+ * label always say the same thing in text.
  */
 @Composable
 fun PodsScreen(
     connection: PodsConnection,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    /** The user's own name for the pods; falls back to the model name. */
+    deviceName: String? = null,
 ) {
     val scheme = MaterialTheme.colorScheme
-    val wash = scheme.primaryContainer.copy(alpha = WASH_ALPHA)
     Box(
         modifier
             .fillMaxSize()
             .background(scheme.background)
-            // A wash of the palette's container colour fading into the
-            // background: enough to feel themed, not enough to fight the
-            // battery colours.
-            .drawBehind {
-                drawRect(Brush.verticalGradient(listOf(wash, Color.Transparent), endY = size.height * WASH_EXTENT))
-            },
+            .ambientGlow(scheme.primary),
     ) {
-        Header(connection, onOpenSettings)
+        // Scrollable so the content survives a short screen, a large font
+        // scale, or landscape, rather than being clipped.
+        Column(
+            Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .verticalScroll(rememberScrollState()),
+        ) {
+            Header(connection, onOpenSettings)
 
-        Box(Modifier.fillMaxSize().padding(horizontal = 24.dp), Alignment.Center) {
-            when (connection) {
-                is PodsConnection.Disconnected -> IdleState(
-                    icon = AppIcons.BluetoothOff,
-                    messageRes = R.string.status_disconnected,
-                    hintRes = R.string.status_disconnected_hint,
-                )
-                is PodsConnection.Searching -> IdleState(
-                    icon = AppIcons.Bluetooth,
-                    messageRes = R.string.status_searching,
-                    hintRes = R.string.status_searching_hint,
-                    isPulsing = true,
-                )
-                is PodsConnection.Live -> LiveReadout(connection.state, connection.lastCase)
+            BoxWithConstraints(
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false)
+                    .padding(horizontal = Dimens.ScreenGutter),
+                contentAlignment = Alignment.Center,
+            ) {
+                // Sized from the space actually available rather than from a
+                // device assumption, so a small phone shrinks the rings
+                // instead of pushing the case card off-screen.
+                val isCompact = maxHeight < Dimens.CompactHeightThreshold
+                val ringDiameter =
+                    if (isCompact) Dimens.RingDiameterMin else Dimens.RingDiameterMax
+
+                when (connection) {
+                    is PodsConnection.Disconnected -> IdleState(
+                        icon = AppIcons.BluetoothOff,
+                        messageRes = R.string.status_disconnected,
+                        hintRes = R.string.status_disconnected_hint,
+                    )
+
+                    is PodsConnection.Searching -> IdleState(
+                        icon = AppIcons.Bluetooth,
+                        messageRes = R.string.status_searching,
+                        hintRes = R.string.status_searching_hint,
+                        isPulsing = true,
+                    )
+
+                    is PodsConnection.Live -> LiveReadout(
+                        state = connection.state,
+                        lastCase = connection.lastCase,
+                        ringDiameter = ringDiameter,
+                        isCompact = isCompact,
+                        deviceName = deviceName,
+                    )
+                }
             }
+
+            Spacer(Modifier.height(Dimens.SectionGap))
         }
     }
+}
+
+/**
+ * A soft wash of the palette behind everything.
+ *
+ * Two offset radial pools rather than one linear gradient: a vertical ramp
+ * reads as a banded background, while overlapping pools read as light in a
+ * room. Kept faint enough that the battery colours stay the brightest thing
+ * on the screen.
+ */
+private fun Modifier.ambientGlow(accent: Color) = drawBehind {
+    val radius = size.width * GLOW_RADIUS_FRACTION
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(accent.copy(alpha = GLOW_ALPHA_TOP), Color.Transparent),
+            center = Offset(size.width * 0.18f, 0f),
+            radius = radius,
+        ),
+        radius = radius,
+        center = Offset(size.width * 0.18f, 0f),
+    )
+    drawCircle(
+        brush = Brush.radialGradient(
+            colors = listOf(accent.copy(alpha = GLOW_ALPHA_SIDE), Color.Transparent),
+            center = Offset(size.width, size.height * 0.30f),
+            radius = radius,
+        ),
+        radius = radius,
+        center = Offset(size.width, size.height * 0.30f),
+    )
 }
 
 @Composable
 private fun Header(connection: PodsConnection, onOpenSettings: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    val (dotColor, statusRes, isPulsing) = when (connection) {
+        is PodsConnection.Disconnected ->
+            Triple(scheme.outline, R.string.status_disconnected, false)
+        is PodsConnection.Searching ->
+            Triple(scheme.primary, R.string.status_searching, true)
+        is PodsConnection.Live ->
+            Triple(LocalBatteryColors.current.good, R.string.status_connected, true)
+    }
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(start = 24.dp, end = 8.dp, top = 12.dp),
+            .padding(
+                start = Dimens.ScreenGutter,
+                end = Dimens.TightGap,
+                top = Dimens.SectionGap,
+                bottom = Dimens.SectionGap,
+            ),
     ) {
         Column(Modifier.weight(1f)) {
             Text(
                 text = stringResource(R.string.app_name),
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = MaterialTheme.colorScheme.onBackground,
             )
-            Spacer(Modifier.height(4.dp))
-            StatusPill(connection)
+            Spacer(Modifier.height(Dimens.TightGap))
+            StatusIndicator(
+                label = stringResource(statusRes),
+                color = dotColor,
+                isPulsing = isPulsing,
+            )
         }
-        IconButton(onClick = onOpenSettings) {
+        IconButton(onClick = onOpenSettings, modifier = Modifier.size(Dimens.TouchTarget)) {
             Icon(
                 Icons.Outlined.Settings,
                 contentDescription = stringResource(R.string.settings_open),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = MaterialTheme.colorScheme.primary,
             )
         }
     }
 }
 
-/** A dot and a word: the connection state at a glance, under the title. */
 @Composable
-private fun StatusPill(connection: PodsConnection) {
-    val (dot, textRes) = when (connection) {
-        is PodsConnection.Disconnected -> MaterialTheme.colorScheme.outline to R.string.status_disconnected
-        is PodsConnection.Searching -> MaterialTheme.colorScheme.primary to R.string.status_searching
-        is PodsConnection.Live -> LocalBatteryColors.current.good to R.string.status_connected
-    }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(Modifier.size(8.dp).clip(CircleShape).background(dot))
-        Text(
-            text = stringResource(textRes),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+private fun LiveReadout(
+    state: PodsState,
+    lastCase: LastCaseReading?,
+    ringDiameter: androidx.compose.ui.unit.Dp,
+    isCompact: Boolean,
+    deviceName: String?,
+) {
+    val numberSize = if (isCompact) COMPACT_NUMBER_SIZE else NUMBER_SIZE
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.widthIn(max = CONTENT_MAX_WIDTH).fillMaxWidth(),
+    ) {
+        // The user's own name identifies *whose* pods these are, which the
+        // model name cannot: every Gen 2 looks alike on the air. The model
+        // stays as the subtitle, and as the fallback when no name is set.
+        DeviceSelector(
+            name = deviceName ?: PodsModel.displayName(state.model),
+            subtitle = PodsModel.displayName(state.model).takeIf { deviceName != null },
+        )
+
+        Spacer(Modifier.height(if (isCompact) Dimens.SectionGap else SECTION_GAP_WIDE))
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(Dimens.SectionGap),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            EarbudBatteryCard(
+                label = stringResource(R.string.pod_left),
+                icon = AppIcons.PodLeft,
+                level = state.leftBattery,
+                isCharging = state.isLeftCharging,
+                ringDiameter = ringDiameter,
+                numberSize = numberSize,
+            )
+            EarbudBatteryCard(
+                label = stringResource(R.string.pod_right),
+                icon = AppIcons.PodRight,
+                level = state.rightBattery,
+                isCharging = state.isRightCharging,
+                ringDiameter = ringDiameter,
+                numberSize = numberSize,
+            )
+        }
+
+        Spacer(Modifier.height(if (isCompact) Dimens.SectionGap else SECTION_GAP_WIDE))
+
+        // Out of the case the beacon cannot report its level, so fall back to
+        // the last reading, marked and dated rather than shown as a dash.
+        val isLive = state.caseBattery != null
+        val remembered = lastCase.takeIf { !isLive }
+        CaseBatteryCard(
+            level = state.caseBattery ?: remembered?.level,
+            isCharging = state.isCaseCharging && isLive,
+            isLidOpen = state.isLidOpen && isLive,
+            remembered = remembered?.let { stringResource(R.string.case_last_seen, relativeAge(it)) },
         )
     }
 }
@@ -180,306 +295,39 @@ private fun IdleState(icon: ImageVector, messageRes: Int, hintRes: Int, isPulsin
         1f
     }
 
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(vertical = Dimens.SectionGap),
+    ) {
         Box(
             Modifier
-                .size(112.dp)
+                .size(IDLE_GLYPH_BOX)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer),
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
             Alignment.Center,
         ) {
             Icon(
                 icon,
                 contentDescription = null,
-                modifier = Modifier.size(52.dp).graphicsLayer { this.alpha = alpha },
-                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.size(IDLE_GLYPH).graphicsLayer { this.alpha = alpha },
+                tint = MaterialTheme.colorScheme.primary,
             )
         }
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(Dimens.SectionGap))
         Text(
             text = stringResource(messageRes),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(Dimens.ItemGap))
         Text(
             text = stringResource(hintRes),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
-            modifier = Modifier.widthIn(max = 300.dp),
+            modifier = Modifier.widthIn(max = HINT_MAX_WIDTH),
         )
-    }
-}
-
-@Composable
-private fun LiveReadout(state: PodsState, lastCase: LastCaseReading?) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        DeviceChip(PodsModel.displayName(state.model))
-
-        Spacer(Modifier.height(36.dp))
-
-        // The pair, at the largest scale on screen.
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(28.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            PodGauge(
-                label = stringResource(R.string.pod_left),
-                icon = AppIcons.PodLeft,
-                level = state.leftBattery,
-                isCharging = state.isLeftCharging,
-            )
-            PodGauge(
-                label = stringResource(R.string.pod_right),
-                icon = AppIcons.PodRight,
-                level = state.rightBattery,
-                isCharging = state.isRightCharging,
-            )
-        }
-
-        Spacer(Modifier.height(40.dp))
-
-        // Case: same information, visibly subordinate. When the pods are out
-        // of the case the beacon cannot know its level, so show the last one
-        // we saw, dimmed and dated, rather than a dash.
-        CaseCard(
-            level = state.caseBattery,
-            isCharging = state.isCaseCharging,
-            isLidOpen = state.isLidOpen,
-            remembered = lastCase.takeIf { state.caseBattery == null },
-        )
-    }
-}
-
-@Composable
-private fun DeviceChip(name: String) {
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-        ) {
-            Icon(AppIcons.Bluetooth, contentDescription = null, modifier = Modifier.size(16.dp))
-            Text(text = name, style = MaterialTheme.typography.labelLarge)
-        }
-    }
-}
-
-/** One bud: ring gauge around its glyph, the number beneath, the label last. */
-@Composable
-private fun PodGauge(label: String, icon: ImageVector, level: Int?, isCharging: Boolean) {
-    val color = batteryColor(level)
-    val description = readingDescription(label, level, isCharging)
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clearAndSetSemantics { contentDescription = description },
-    ) {
-        BatteryRing(level = level, color = color, diameter = 128.dp, stroke = 9.dp) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(52.dp), tint = color)
-            if (isCharging) ChargingBadge(Modifier.align(Alignment.BottomEnd))
-        }
-        Spacer(Modifier.height(14.dp))
-        LevelText(level = level, color = color, numberSize = 40.sp)
-        Text(
-            text = label.uppercase(),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            letterSpacing = 1.5.sp,
-        )
-    }
-}
-
-@Composable
-private fun CaseCard(
-    level: Int?,
-    isCharging: Boolean,
-    isLidOpen: Boolean,
-    remembered: LastCaseReading?,
-) {
-    val label = stringResource(R.string.pod_case)
-    val isLive = level != null
-    val shown = level ?: remembered?.level
-    val isStale = !isLive && remembered != null
-    val ageText = remembered?.let { relativeAge(it) }
-    val lastSeen = ageText?.let { stringResource(R.string.case_last_seen, it) }
-    val showLidOpen = isLidOpen && isLive
-    val showCharging = isCharging && isLive
-    val color = if (isStale) MaterialTheme.colorScheme.onSurfaceVariant else batteryColor(shown)
-    val description = readingDescription(label, shown, showCharging) +
-        (if (showLidOpen) ", lid open" else "") +
-        (if (isStale && lastSeen != null) ", $lastSeen" else "")
-
-    Surface(
-        shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = CASE_CARD_ALPHA),
-        modifier = Modifier
-            .widthIn(max = 340.dp)
-            .fillMaxWidth()
-            .clearAndSetSemantics { contentDescription = description },
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
-        ) {
-            BatteryRing(level = shown, color = color, diameter = 64.dp, stroke = 6.dp) {
-                Icon(
-                    if (showLidOpen) AppIcons.CaseOpen else AppIcons.CaseClosed,
-                    contentDescription = null,
-                    modifier = Modifier.size(26.dp),
-                    tint = color,
-                )
-            }
-            Spacer(Modifier.width(18.dp))
-            Column(Modifier.weight(1f)) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    Text(
-                        text = label.uppercase(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        letterSpacing = 1.5.sp,
-                    )
-                    if (showLidOpen) Tag(text = stringResource(R.string.lid_open))
-                    if (showCharging) Tag(text = stringResource(R.string.charging), icon = AppIcons.Bolt)
-                }
-                Spacer(Modifier.height(2.dp))
-                LevelText(level = shown, color = color, numberSize = 30.sp)
-                if (isStale && lastSeen != null) {
-                    Text(
-                        text = lastSeen,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-    }
-}
-
-/** "80" with a small "%" on the baseline, or a dash when unknown. */
-@Composable
-private fun LevelText(level: Int?, color: Color, numberSize: TextUnit) {
-    Row {
-        Text(
-            text = level?.toString() ?: stringResource(R.string.battery_unknown),
-            fontSize = numberSize,
-            fontWeight = FontWeight.SemiBold,
-            color = color,
-            modifier = Modifier.alignByBaseline(),
-        )
-        if (level != null) {
-            Text(
-                text = "%",
-                style = MaterialTheme.typography.titleMedium,
-                color = color,
-                modifier = Modifier.alignByBaseline().padding(start = 2.dp),
-            )
-        }
-    }
-}
-
-/** Small tonal pill for a state word: "Lid open", "Charging". */
-@Composable
-private fun Tag(text: String, icon: ImageVector? = null) {
-    Surface(
-        shape = CircleShape,
-        color = MaterialTheme.colorScheme.primaryContainer,
-        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(3.dp),
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-        ) {
-            if (icon != null) Icon(icon, contentDescription = null, modifier = Modifier.size(12.dp))
-            Text(text = text, style = MaterialTheme.typography.labelSmall)
-        }
-    }
-}
-
-@Composable
-private fun ChargingBadge(modifier: Modifier = Modifier) {
-    Box(
-        modifier
-            .size(30.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primary)
-            .border(2.dp, MaterialTheme.colorScheme.background, CircleShape),
-        Alignment.Center,
-    ) {
-        Icon(
-            AppIcons.Bolt,
-            contentDescription = stringResource(R.string.charging),
-            modifier = Modifier.size(16.dp),
-            tint = MaterialTheme.colorScheme.onPrimary,
-        )
-    }
-}
-
-/**
- * A ring gauge that animates between readings.
- *
- * Beacons arrive in 10% steps and irregularly, so an unanimated ring would
- * visibly jump. Only the sweep and the colour animate, and it is drawn on a
- * Canvas rather than composed from shapes, so it stays cheap.
- */
-@Composable
-private fun BatteryRing(
-    level: Int?,
-    color: Color,
-    diameter: Dp,
-    stroke: Dp,
-    content: @Composable BoxScope.() -> Unit,
-) {
-    val sweep by animateFloatAsState(
-        targetValue = (level ?: 0) / 100f * FULL_SWEEP_DEGREES,
-        animationSpec = tween(durationMillis = 700, easing = FastOutSlowInEasing),
-        label = "ringSweep",
-    )
-    val ringColor by animateColorAsState(
-        targetValue = color,
-        animationSpec = tween(durationMillis = 400),
-        label = "ringColor",
-    )
-    val track = MaterialTheme.colorScheme.surfaceVariant
-
-    Box(Modifier.size(diameter), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
-            val strokePx = stroke.toPx()
-            val inset = strokePx / 2
-            val arcSize = Size(size.width - strokePx, size.height - strokePx)
-            val style = Stroke(width = strokePx, cap = StrokeCap.Round)
-            drawArc(
-                color = track,
-                startAngle = 0f,
-                sweepAngle = FULL_SWEEP_DEGREES,
-                useCenter = false,
-                topLeft = Offset(inset, inset),
-                size = arcSize,
-                style = style,
-            )
-            if (level != null && sweep > 0f) {
-                drawArc(
-                    color = ringColor,
-                    startAngle = RING_START_DEGREES,
-                    sweepAngle = sweep,
-                    useCenter = false,
-                    topLeft = Offset(inset, inset),
-                    size = arcSize,
-                    style = style,
-                )
-            }
-        }
-        content()
     }
 }
 
@@ -505,18 +353,15 @@ private fun relativeAge(reading: LastCaseReading): String {
     }
 }
 
-private fun readingDescription(label: String, level: Int?, isCharging: Boolean): String =
-    buildString {
-        append(label)
-        append(if (level != null) ", $level percent" else ", level unknown")
-        if (isCharging) append(", charging")
-    }
-
 private const val AGE_REFRESH_MS = 60_000L
-private const val FULL_SWEEP_DEGREES = 360f
-/** Twelve o'clock; Canvas angles start at three o'clock. */
-private const val RING_START_DEGREES = -90f
-private const val WASH_ALPHA = 0.55f
-/** How far down the screen the palette wash reaches before it has faded out. */
-private const val WASH_EXTENT = 0.55f
-private const val CASE_CARD_ALPHA = 0.6f
+private val NUMBER_SIZE = 42.sp
+private val COMPACT_NUMBER_SIZE = 32.sp
+private val SECTION_GAP_WIDE = 40.dp
+/** Keeps the readout from stretching on a tablet or an unfolded device. */
+private val CONTENT_MAX_WIDTH = 420.dp
+private val HINT_MAX_WIDTH = 300.dp
+private val IDLE_GLYPH_BOX = 112.dp
+private val IDLE_GLYPH = 52.dp
+private const val GLOW_RADIUS_FRACTION = 0.95f
+private const val GLOW_ALPHA_TOP = 0.16f
+private const val GLOW_ALPHA_SIDE = 0.10f

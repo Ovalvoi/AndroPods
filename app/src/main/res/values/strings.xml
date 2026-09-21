@@ -6,6 +6,9 @@
     <string name="pod_left">Left</string>
     <string name="pod_right">Right</string>
     <string name="pod_case">Case</string>
+    <string name="battery_percent">%1$d%%</string>
+    <!-- A remembered case level: the pods are out of the case, so this is the last reading, not a live one. -->
+    <string name="battery_remembered_percent">~%1$d%%</string>
 
     <string name="service_channel_name">AirPods status</string>
     <string name="service_channel_description">Ongoing battery readout while your AirPods are connected.</string>
@@ -33,7 +36,7 @@
 
     <string name="settings_section_appearance">Appearance</string>
     <string name="settings_theme">Theme</string>
-    <string name="theme_system">Material You</string>
+    <string name="theme_system">Default</string>
     <string name="theme_ocean">Ocean</string>
     <string name="theme_sunset">Sunset</string>
     <string name="theme_forest">Forest</string>
@@ -43,11 +46,26 @@
     <string name="dark_mode_light">Light</string>
     <string name="dark_mode_dark">Dark</string>
 
-    <string name="settings_section_popup">Case-opened popup</string>
+    <string name="popup_connected_title">AirPods connected</string>
+    <string name="popup_dismiss">Dismiss</string>
+
+    <string name="settings_section_popup">Popups</string>
+    <string name="settings_connect_popup">Show on connect</string>
+    <string name="settings_connect_popup_summary">Slide a battery card in from the edge of the screen when your AirPods connect.</string>
+    <string name="settings_popup_position">Position</string>
+    <string name="popup_position_top">Top</string>
+    <string name="popup_position_bottom">Bottom</string>
+    <string name="settings_overlay_permission">Allow displaying over other apps</string>
+    <string name="settings_overlay_permission_summary">Needed to draw the connect popup over whatever app you are in. Without it the popup cannot be shown.</string>
+    <string name="settings_overlay_grant">Grant</string>
     <string name="settings_auto_dismiss">Dismiss automatically</string>
     <string name="settings_auto_dismiss_summary">Hide the popup by itself instead of waiting for a swipe.</string>
     <string name="settings_popup_timeout">Hide after</string>
     <string name="settings_seconds">%1$d s</string>
+
+    <string name="settings_preview_popup">Preview popup</string>
+    <string name="settings_preview_popup_summary">Show the connect popup now, with sample battery levels. Debug builds only.</string>
+    <string name="settings_preview_show">Show</string>
 
     <string name="settings_section_audio">Audio</string>
     <string name="settings_resume_music">Resume music when connected</string>
