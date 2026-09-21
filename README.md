@@ -1,6 +1,8 @@
 <p align="center">
   <img src="docs/screenshots/readout-dark.png" alt="AndroPods showing left, right and case battery" width="230">
   &nbsp;&nbsp;
+  <img src="docs/screenshots/popup.png" alt="The connect popup, showing all three levels" width="230">
+  &nbsp;&nbsp;
   <img src="docs/screenshots/readout-light.png" alt="AndroPods in light mode" width="230">
 </p>
 
@@ -34,7 +36,7 @@ Android never shows you the battery of your AirPods — the phone only sees them
 - **No location permission.** Bluetooth scanning is declared `neverForLocation`, so Android does not ask for it.
 
 <p align="center">
-  <img src="docs/screenshots/themes.png" alt="Ocean, Sunset, Forest and Grape themes" width="720">
+  <img src="docs/screenshots/themes.png" alt="Ocean, Sunset, Forest and Grape colourways" width="760">
 </p>
 
 ## Requirements
