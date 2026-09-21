@@ -17,9 +17,26 @@ android {
         // results. Verified side by side -- identical code at 35 receives
         // ~1400 advertisements in 25s, at 36 receives exactly 0.
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    // Release signing comes from the environment, never from the repo. CI
+    // sets these from repository secrets (see .github/workflows/android.yml);
+    // locally, export them or leave them unset for an unsigned release build.
+    val releaseKeystore = System.getenv("ANDROPODS_KEYSTORE_FILE")
+        ?.let(::file)
+        ?.takeIf { it.exists() }
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = releaseKeystore
+                storePassword = System.getenv("ANDROPODS_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("ANDROPODS_KEY_ALIAS")
+                keyPassword = System.getenv("ANDROPODS_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -29,6 +46,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            signingConfig = signingConfigs.findByName("release")
         }
     }
 

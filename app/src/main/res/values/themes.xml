@@ -5,5 +5,5 @@
         launch theme. values-night/ swaps it to the dark variant so there is no
         light flash before the Compose tree draws.
     -->
-    <style name="Theme.Andropods" parent="@android:style/Theme.Material.Light.NoActionBar" />
+    <style name="Theme.AndroPods" parent="@android:style/Theme.Material.Light.NoActionBar" />
 </resources>

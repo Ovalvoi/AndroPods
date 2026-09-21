@@ -17,6 +17,8 @@ data class AppSettings(
     val popupTimeoutSeconds: Int = DEFAULT_POPUP_TIMEOUT_SECONDS,
     /** Send a media PLAY to the last active player once the pods' audio link is up. */
     val resumeMusicOnConnect: Boolean = false,
+    val colorTheme: ColorTheme = ColorTheme.DEFAULT,
+    val darkMode: DarkMode = DarkMode.DEFAULT,
 ) {
     val popupTimeoutMs: Long get() = popupTimeoutSeconds * 1_000L
 
@@ -55,6 +57,8 @@ object SettingsStore {
             putBoolean(KEY_AUTO_DISMISS, next.autoDismissPopup)
             putInt(KEY_POPUP_TIMEOUT, next.popupTimeoutSeconds)
             putBoolean(KEY_RESUME_MUSIC, next.resumeMusicOnConnect)
+            putString(KEY_COLOR_THEME, next.colorTheme.key)
+            putString(KEY_DARK_MODE, next.darkMode.key)
         }
     }
 
@@ -69,6 +73,8 @@ object SettingsStore {
                 defaults.popupTimeoutSeconds
             },
             resumeMusicOnConnect = prefs.getBoolean(KEY_RESUME_MUSIC, defaults.resumeMusicOnConnect),
+            colorTheme = ColorTheme.fromKey(prefs.getString(KEY_COLOR_THEME, null)),
+            darkMode = DarkMode.fromKey(prefs.getString(KEY_DARK_MODE, null)),
         )
     }
 
@@ -76,4 +82,6 @@ object SettingsStore {
     private const val KEY_AUTO_DISMISS = "auto_dismiss_popup"
     private const val KEY_POPUP_TIMEOUT = "popup_timeout_seconds"
     private const val KEY_RESUME_MUSIC = "resume_music_on_connect"
+    private const val KEY_COLOR_THEME = "color_theme"
+    private const val KEY_DARK_MODE = "dark_mode"
 }

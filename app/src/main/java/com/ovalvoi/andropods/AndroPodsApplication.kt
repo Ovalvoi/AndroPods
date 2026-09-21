@@ -4,7 +4,7 @@ import android.app.Application
 import com.ovalvoi.andropods.data.SettingsStore
 import com.ovalvoi.andropods.service.BondReceiver
 
-class AndropodsApplication : Application() {
+class AndroPodsApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         // Process-lifetime registration: implicit ACL broadcasts are not

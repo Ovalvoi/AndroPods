@@ -8,3 +8,6 @@ captures/
 .cxx/
 *.apk
 *.aab
+
+# Reference dumps of other apps must never be committed
+airpodsforandroid/

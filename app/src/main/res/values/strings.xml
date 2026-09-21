@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Andropods</string>
+    <string name="app_name">AndroPods</string>
 
     <string name="battery_unknown">&#8212;</string>
     <string name="pod_left">Left</string>
@@ -12,8 +12,14 @@
     <string name="lid_channel_name">Case opened</string>
     <string name="lid_channel_description">A brief battery summary when you open the case.</string>
 
+    <string name="status_connected">Connected</string>
     <string name="status_disconnected">AirPods not connected</string>
+    <string name="status_disconnected_hint">Connect your AirPods from Bluetooth settings and the battery readout appears here.</string>
     <string name="status_searching">Looking for your AirPods…</string>
+    <string name="status_searching_hint">Connected. Waiting for the first battery beacon, which usually takes a few seconds.</string>
+
+    <string name="lid_open">Lid open</string>
+    <string name="charging">Charging</string>
 
     <string name="case_last_seen">last seen %1$s</string>
     <string name="age_just_now">just now</string>
@@ -24,6 +30,18 @@
     <string name="settings_title">Settings</string>
     <string name="settings_open">Open settings</string>
     <string name="settings_back">Back</string>
+
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_theme">Theme</string>
+    <string name="theme_system">Material You</string>
+    <string name="theme_ocean">Ocean</string>
+    <string name="theme_sunset">Sunset</string>
+    <string name="theme_forest">Forest</string>
+    <string name="theme_grape">Grape</string>
+    <string name="settings_dark_mode">Dark mode</string>
+    <string name="dark_mode_system">System</string>
+    <string name="dark_mode_light">Light</string>
+    <string name="dark_mode_dark">Dark</string>
 
     <string name="settings_section_popup">Case-opened popup</string>
     <string name="settings_auto_dismiss">Dismiss automatically</string>

@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
  * Environment probe, not a product test: which scan configuration makes this
  * phone deliver the pods' beacon? Starts from the configuration a working app
  * (MaterialPods) was observed using and changes ONE variable per phase toward
- * the configuration Andropods uses, so the variable that kills reception
+ * the configuration AndroPods uses, so the variable that kills reception
  * stands out.
  *
  *   adb shell am force-stop com.pryshedko.materialpods   # no merged scans
@@ -57,7 +57,7 @@ class MatrixScanProbeTest {
             Config("4 ...but legacy=false + PHY ALL",                         bal, 5000, false, true, false, listOf(appleAny27)),
             Config("5 ...but type-07/FF filter",                              bal, 5000, null, false, false, listOf(appleType07)),
             Config("6 ...but MATCH_NUM_MAX + AGGRESSIVE",                     bal, 5000, null, false, true, listOf(appleAny27)),
-            Config("7 Andropods exact: LOW_LATENCY delay0 legacy=false ALL MAX type07", low, 0, false, true, true, listOf(appleType07)),
+            Config("7 AndroPods exact: LOW_LATENCY delay0 legacy=false ALL MAX type07", low, 0, false, true, true, listOf(appleType07)),
             Config("8 unfiltered BALANCED regular",                            bal, 0,    null, false, false, emptyList()),
         )
         for (c in configs) runPhase(scanner, c, seconds)

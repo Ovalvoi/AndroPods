@@ -1,0 +1,111 @@
+name: Android CI
+
+# Every push and PR: unit tests, lint, debug + release APKs as downloadable
+# artifacts. A tag like v0.2.0 additionally publishes a GitHub Release with
+# the APKs attached, which is what the README's install instructions point at.
+#
+# Release signing is optional. Add these repository secrets to get a signed,
+# upgradeable release APK; without them the release APK is unsigned and only
+# the debug APK is installable:
+#   ANDROPODS_KEYSTORE_BASE64   base64 of your .jks   (base64 -w0 release.jks)
+#   ANDROPODS_KEYSTORE_PASSWORD
+#   ANDROPODS_KEY_ALIAS
+#   ANDROPODS_KEY_PASSWORD
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Test, lint and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: gradle/actions/wrapper-validation@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - run: chmod +x gradlew
+
+      - name: Unit tests
+        run: ./gradlew testDebugUnitTest --no-daemon
+
+      - name: Android lint
+        run: ./gradlew lintDebug --no-daemon
+
+      - name: Debug APK
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Release APK
+        env:
+          ANDROPODS_KEYSTORE_BASE64: ${{ secrets.ANDROPODS_KEYSTORE_BASE64 }}
+          ANDROPODS_KEYSTORE_PASSWORD: ${{ secrets.ANDROPODS_KEYSTORE_PASSWORD }}
+          ANDROPODS_KEY_ALIAS: ${{ secrets.ANDROPODS_KEY_ALIAS }}
+          ANDROPODS_KEY_PASSWORD: ${{ secrets.ANDROPODS_KEY_PASSWORD }}
+        run: |
+          if [ -n "$ANDROPODS_KEYSTORE_BASE64" ]; then
+            echo "$ANDROPODS_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+            export ANDROPODS_KEYSTORE_FILE="$RUNNER_TEMP/release.jks"
+            echo "Signing release with the repository keystore"
+          else
+            echo "No ANDROPODS_KEYSTORE_BASE64 secret; building an unsigned release APK"
+          fi
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Collect APKs
+        run: |
+          set -e
+          VERSION=$(sed -n 's/.*versionName = "\(.*\)".*/\1/p' app/build.gradle.kts)
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/app-debug.apk "dist/AndroPods-$VERSION-debug.apk"
+          if [ -f app/build/outputs/apk/release/app-release.apk ]; then
+            cp app/build/outputs/apk/release/app-release.apk "dist/AndroPods-$VERSION.apk"
+          else
+            cp app/build/outputs/apk/release/app-release-unsigned.apk "dist/AndroPods-$VERSION-unsigned.apk"
+          fi
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apks
+          path: dist/*.apk
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reports
+          path: |
+            app/build/reports/tests/testDebugUnitTest
+            app/build/reports/lint-results-debug.html
+          if-no-files-found: ignore
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: apks
+          path: dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.apk
+          generate_release_notes: true

@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Andropods"
+rootProject.name = "AndroPods"
 include(":app")
