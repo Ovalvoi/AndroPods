@@ -11,6 +11,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.SystemClock
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.ovalvoi.andropods.data.PodsRepository
@@ -46,14 +47,24 @@ private fun BluetoothDevice.readableName(): String? = try {
  * device is unambiguous. Scanning only while that link is up is what keeps the
  * readout trustworthy, and keeps the radio off the rest of the time.
  *
- * Registered at runtime from the Application rather than the manifest: these
- * are implicit broadcasts, and manifest registration for them is unreliable on
- * modern Android.
+ * Registered twice, on purpose:
+ *
+ * - In the manifest, so the system wakes the app on a connect even after its
+ *   process was killed (swiped away, reclaimed for memory, after a reboot).
+ *   ACL and A2DP connection-state broadcasts are on Android's exemption list
+ *   for implicit broadcasts, so this costs nothing while idle: no process, no
+ *   service, no wakeups -- the app only runs when a Bluetooth link changes.
+ * - At runtime from the Application, the path that was verified on-device,
+ *   kept as a fallback for any build that is stingy with manifest delivery.
+ *
+ * While the process is alive both copies see the same broadcast, so
+ * [isDuplicate] drops the second delivery.
  */
 class BondReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
         val device = IntentCompat.getDevice(intent) ?: return
+        if (isDuplicate(intent, device)) return
         if (!hasConnectPermission(context)) return
         if (!isAudioDevice(device)) return
 
@@ -117,6 +128,29 @@ class BondReceiver : BroadcastReceiver() {
 
     companion object {
         private const val TAG = "BondReceiver"
+
+        /**
+         * Longer than the gap between the manifest and runtime deliveries of
+         * one broadcast (milliseconds), far shorter than a real disconnect and
+         * reconnect.
+         */
+        private const val DUPLICATE_WINDOW_MS = 2_000L
+
+        /** Process-wide: the two receiver instances share it. Main thread only. */
+        private val lastSeen = HashMap<String, Long>()
+
+        /**
+         * True when this exact event was already handled by the other
+         * registration. Keyed on the profile state too, so A2DP connecting
+         * and disconnecting are never mistaken for each other.
+         */
+        private fun isDuplicate(intent: Intent, device: BluetoothDevice): Boolean {
+            val state = intent.getIntExtra(BluetoothProfile.EXTRA_STATE, -1)
+            val key = "${intent.action}|${device.address}|$state"
+            val now = SystemClock.elapsedRealtime()
+            val previous = lastSeen.put(key, now)
+            return previous != null && now - previous < DUPLICATE_WINDOW_MS
+        }
 
         /**
          * Start the service if bonded audio pods are *already* connected.

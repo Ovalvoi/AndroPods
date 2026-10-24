@@ -106,6 +106,7 @@ Remaining checks:
 - [ ] Take one pod out, put it back, swap which pod is primary — readings must follow the physical bud.
 - [ ] Screen off 30+ minutes — the notification must keep updating.
 - [ ] `adb shell dumpsys deviceidle force-idle` — the service must survive Doze.
+- [ ] Swipe the app away (or reboot), then connect the pods; confirm the manifest-registered `BondReceiver` wakes the app and the popup appears, with no duplicate popup or double music resume while the app is alive.
 - [ ] Walk out of range and back; confirm clean disconnect and recovery now that `BondReceiver` actually receives ACL events.
 - [ ] Somewhere with other AirPods nearby, confirm hysteresis does not latch onto a stranger's pair.
 - [ ] Deny each permission at runtime; confirm the app degrades rather than crashes.

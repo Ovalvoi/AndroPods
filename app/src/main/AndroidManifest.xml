@@ -56,6 +56,24 @@
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
 
+        <!--
+            Wakes the app when the pods connect, even if its process is dead,
+            so the popup works without the app ever being opened. These actions
+            are exempt from the Android 8 implicit-broadcast ban, and the system
+            only starts the process when one fires: zero idle battery cost.
+            Exported because the sender is the Bluetooth process (uid 1002);
+            all three are protected broadcasts, so nothing else can spoof them.
+        -->
+        <receiver
+            android:name=".service.BondReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.bluetooth.device.action.ACL_CONNECTED" />
+                <action android:name="android.bluetooth.device.action.ACL_DISCONNECTED" />
+                <action android:name="android.bluetooth.a2dp.profile.action.CONNECTION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>
