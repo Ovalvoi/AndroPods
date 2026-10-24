@@ -53,6 +53,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ovalvoi.andropods.BuildConfig
@@ -176,6 +177,8 @@ fun SettingsScreen(
                 )
             }
 
+            Spacer(Modifier.height(32.dp))
+            VersionFooter()
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -201,6 +204,27 @@ private fun SectionLabel(icon: ImageVector, text: String) {
             letterSpacing = 1.5.sp,
         )
     }
+}
+
+/**
+ * Which build is installed, so a bug report can name it. Debug builds say so:
+ * they share the version name with the release but not its signature, and
+ * one cannot be installed over the other.
+ */
+@Composable
+private fun VersionFooter() {
+    val version = if (BuildConfig.DEBUG) {
+        stringResource(R.string.settings_version_debug, BuildConfig.VERSION_NAME)
+    } else {
+        stringResource(R.string.settings_version, BuildConfig.VERSION_NAME)
+    }
+    Text(
+        text = version,
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable

@@ -74,4 +74,7 @@
     <string name="settings_section_gestures">Gestures</string>
     <string name="settings_gestures_title">Double-tap is handled by the AirPods</string>
     <string name="settings_gestures_body">A double tap sends a standard Bluetooth command straight to the phone: with the pod set to Siri (the default) Android opens your assistant; set to Play/Pause, Next or Previous it controls playback. This works without this app and cannot be changed from Android — the action is stored in the pods and only an iPhone’s Bluetooth settings can change it.</string>
+
+    <string name="settings_version">AndroPods %1$s</string>
+    <string name="settings_version_debug">AndroPods %1$s · debug</string>
 </resources>

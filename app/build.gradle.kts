@@ -17,8 +17,8 @@ android {
         // results. Verified side by side -- identical code at 35 receives
         // ~1400 advertisements in 25s, at 36 receives exactly 0.
         targetSdk = 35
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 5
+        versionName = "0.4.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
