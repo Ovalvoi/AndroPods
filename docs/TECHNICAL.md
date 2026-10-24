@@ -97,6 +97,8 @@ Three per window because the controller de-duplicates within a batch window; tha
 
 **Two bugs found on the way, both fixed:** `BondReceiver` was registered `RECEIVER_NOT_EXPORTED`, which on Android 14+ blocks broadcasts from the Bluetooth process (uid 1002 is not the system uid) — four ACL transitions produced zero callbacks, so the service never stopped or restarted on connect/disconnect; and the scan filter mask was `0x01`, which compares one *bit*, not one byte.
 
+**Wake on connect, and the lock screen (verified on the Pixel 7, 0.4.0).** `BondReceiver` is now declared in the manifest as well as registered at runtime, so a killed process is started by the ACL broadcast itself (`Start proc … for broadcast BondReceiver`), and the foreground service is allowed from the background under the `BLUETOOTH_BROADCAST` temp-allowlist exemption. Idle cost is zero: no process exists until a Bluetooth link changes. While the process is alive both registrations see each broadcast; a 2 s de-duplication window keyed on action, address and profile state drops the second. Overlay windows are never drawn above the keyguard, so a popup due while the phone is locked or the screen is off is deferred until `USER_PRESENT` / `SCREEN_ON` and then shows the newest reading; it is dropped if the pods disconnect first. The same export trap bit again here: `USER_PRESENT` is sent by **SystemUI** (an app uid), so a `RECEIVER_NOT_EXPORTED` receiver got `SCREEN_ON` but never the unlock — the broadcast history listed no AndroPods receiver for it.
+
 **Diagnostics kept in `androidTest`:** `RawScanProbeTest` (unfiltered regular scan), `BatchScanProbeTest`, `MatrixScanProbeTest` (the table above), `AdvertiseProbeTest` (makes the phone a known transmitter; needs the debug-only `BLUETOOTH_ADVERTISE`). Install both APKs with `adb install -r -g` and run them with `am instrument -e seconds N`, not `connectedAndroidTest`, which reinstalls the app and wipes runtime grants — a probe launched that way silently scans without `BLUETOOTH_SCAN` and reports zero.
 
 Remaining checks:
@@ -106,7 +108,9 @@ Remaining checks:
 - [ ] Take one pod out, put it back, swap which pod is primary — readings must follow the physical bud.
 - [ ] Screen off 30+ minutes — the notification must keep updating.
 - [ ] `adb shell dumpsys deviceidle force-idle` — the service must survive Doze.
-- [ ] Swipe the app away (or reboot), then connect the pods; confirm the manifest-registered `BondReceiver` wakes the app and the popup appears, with no duplicate popup or double music resume while the app is alive.
+- [x] Kill the app's process, then connect the pods; the manifest-registered `BondReceiver` wakes the app and the popup appears, once, with no duplicate while the app is alive.
+- [x] Connect with the phone locked; the popup waits and appears on unlock.
+- [ ] Same after a reboot, before the app has been opened.
 - [ ] Walk out of range and back; confirm clean disconnect and recovery now that `BondReceiver` actually receives ACL events.
 - [ ] Somewhere with other AirPods nearby, confirm hysteresis does not latch onto a stranger's pair.
 - [ ] Deny each permission at runtime; confirm the app degrades rather than crashes.

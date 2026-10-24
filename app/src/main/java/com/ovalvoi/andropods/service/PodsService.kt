@@ -2,14 +2,19 @@ package com.ovalvoi.andropods.service
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.KeyguardManager
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.bluetooth.le.ScanSettings
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
@@ -62,6 +67,19 @@ class PodsService : Service() {
      * memory -- no reset logic, and reconnecting shows the popup again.
      */
     private var hasShownConnectPopup = false
+
+    /**
+     * The newest reading, kept so a popup deferred by the lock screen shows
+     * current numbers when it finally appears rather than ones from connect.
+     */
+    @Volatile private var latestState: PodsState? = null
+    @Volatile private var latestCase: LastCaseReading? = null
+
+    /**
+     * Registered only while a popup is waiting for the user to unlock, and
+     * only for the life of this service, so it never outlives a connection.
+     */
+    private var unlockReceiver: BroadcastReceiver? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -135,6 +153,8 @@ class PodsService : Service() {
                 ) ?: return@onEach
 
                 val lastCase = caseMemory.observe(state)
+                latestState = state
+                latestCase = lastCase
                 PodsRepository.onState(state, lastCase)
                 showConnectPopupOnce(state, lastCase)
                 notifyLidTransition(state, lastCase)
@@ -161,7 +181,59 @@ class PodsService : Service() {
         val settings = SettingsStore.settings.value
         if (!settings.showConnectPopup) return
         hasShownConnectPopup = true
-        popupHost.show(state, lastCase, settings)
+        if (isUserLookingAtScreen()) {
+            popupHost.show(state, lastCase, settings)
+        } else {
+            deferPopupUntilUnlocked()
+        }
+    }
+
+    /**
+     * Android never draws overlay windows above the lock screen, and a card
+     * shown to a dark screen would time out unseen. Either way the popup is
+     * held until the user is actually looking at an unlocked phone.
+     */
+    private fun isUserLookingAtScreen(): Boolean =
+        getSystemService(PowerManager::class.java)?.isInteractive == true &&
+            getSystemService(KeyguardManager::class.java)?.isKeyguardLocked != true
+
+    /**
+     * Wait for the unlock, then show the card with the newest reading.
+     *
+     * USER_PRESENT fires after a real unlock; SCREEN_ON covers phones with no
+     * secure lock (or Smart Lock), where waking the screen is the unlock. Both
+     * are pushed by the system, so waiting costs nothing.
+     */
+    private fun deferPopupUntilUnlocked() {
+        if (unlockReceiver != null) return
+        Log.d(TAG, "Screen locked or off; deferring popup until unlock")
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (!isUserLookingAtScreen()) return
+                val state = latestState ?: return
+                unregisterUnlockReceiver()
+                val settings = SettingsStore.settings.value
+                if (settings.showConnectPopup) {
+                    Log.d(TAG, "Unlocked; showing deferred popup")
+                    popupHost.show(state, latestCase, settings)
+                }
+            }
+        }
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_USER_PRESENT)
+            addAction(Intent.ACTION_SCREEN_ON)
+        }
+        // EXPORTED, for the same reason as BondReceiver: USER_PRESENT is sent
+        // by SystemUI (an app uid, not the system uid), so a NOT_EXPORTED
+        // receiver gets SCREEN_ON but never the unlock. Verified on-device.
+        // Both actions are protected broadcasts, so nothing else can spoof them.
+        ContextCompat.registerReceiver(this, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
+        unlockReceiver = receiver
+    }
+
+    private fun unregisterUnlockReceiver() {
+        unlockReceiver?.let { runCatching { unregisterReceiver(it) } }
+        unlockReceiver = null
     }
 
     /**
@@ -202,6 +274,7 @@ class PodsService : Service() {
         ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
 
     override fun onDestroy() {
+        unregisterUnlockReceiver()
         popupHost.destroy()
         scanJob?.cancel()
         scope.cancel()

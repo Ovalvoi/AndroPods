@@ -25,7 +25,7 @@ Android never shows you the battery of your AirPods — the phone only sees them
 
 - **Live battery readout** for the left bud, the right bud and the case, in colour: green, orange at 40% and below, red at 20% and below.
 - **Charging indicator** on whichever pod or case is charging.
-- **Connect popup** — a themed card slides in from the edge of the screen when your AirPods connect, over whatever app you are in, showing all three levels. Choose top or bottom; auto-dismisses after 3 / 8 / 15 s, or stays until swiped.
+- **Connect popup** — a themed card slides in from the edge of the screen when your AirPods connect, over whatever app you are in, showing all three levels. Works without opening the app first, and if the phone is locked it waits and appears the moment you unlock. Choose top or bottom; auto-dismisses after 3 / 8 / 15 s, or stays until swiped.
 - **Case-opened popup** — the same brief summary when you open the lid.
 - **Battery rings in the notification** — the ongoing status entry draws a real gauge per component, colour-coded, on a single line.
 - **Remembers the case.** With both buds in your ears the case cannot report its level (its radio is in the buds — an iPhone shows nothing either). AndroPods shows the last reading it saw and how old it is.
@@ -156,7 +156,7 @@ The instrumented tests under `app/src/androidTest` are radio diagnostics rather 
 [CI](.github/workflows/android.yml) runs the tests, lint and both APK builds on every push, and publishes a GitHub Release with the APKs when you push a tag:
 
 ```bash
-git tag v0.3.0 && git push origin v0.3.0
+git tag v0.4.0 && git push origin v0.4.0
 ```
 
 For a **signed** release APK (installable over previous versions), add four repository secrets — `ANDROPODS_KEYSTORE_BASE64` (the `.jks` file base64-encoded), `ANDROPODS_KEYSTORE_PASSWORD`, `ANDROPODS_KEY_ALIAS`, `ANDROPODS_KEY_PASSWORD`. Without them CI still produces an unsigned release APK plus an installable debug APK. Locally, export the same names (`ANDROPODS_KEYSTORE_FILE` pointing at the `.jks` instead of the base64 one) before `./gradlew assembleRelease`.
